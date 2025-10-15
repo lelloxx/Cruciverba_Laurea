@@ -1,192 +1,253 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="it">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Cruciverba di Laurea</title>
 <style>
-body {
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  margin: 0; padding: 20px;
-  background: #fafafa; color: #111;
-}
-h1 { text-align: center; margin-bottom: 10px; }
-.wrap { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
-.grid {
-  display: grid;
-  grid-template-columns: repeat(13, 38px);
-  grid-template-rows: repeat(13, 38px);
-  background: #111;
-  border: 1px solid #111;
-}
-.cell {
-  width: 38px; height: 38px;
-  border: 1px solid #999;
-  background: #fff;
-  position: relative;
-  display: flex; align-items: center; justify-content: center;
-}
-.cell.black { background: #111; border-color: #111; }
-.cell input {
-  width: 100%; height: 100%;
-  border: none; outline: none;
-  text-transform: uppercase;
-  text-align: center;
-  font-weight: 700; font-size: 16px;
-  background: transparent;
-}
-.cell .num {
-  position: absolute;
-  top: 2px; left: 3px;
-  font-size: 10px; color: #555;
-}
-button {
-  padding: 10px 14px;
-  border: 1px solid #333;
-  background: #fff;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 600;
-}
-#win { display: none; margin-top: 10px; padding: 10px; border: 1px solid #0a0; color: #0a0; border-radius: 8px; }
-#formWrap { display: none; margin-top: 15px; text-align: center; }
-#formWrap iframe { width: 100%; max-width: 640px; height: 600px; border: 0; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-
-/* feedback */
-.correct { background: #e8fbe8 !important; }
-.wrong { background: #ffeaea !important; }
-
-/* ✅ MOBILE FIX */
-@media (max-width: 880px){
-  body { padding: 16px; }
-  .wrap { flex-direction: column; align-items: center; }
-  .grid {
-    grid-template-columns: repeat(13, min(8.5vw, 36px));
-    grid-template-rows: repeat(13, min(8.5vw, 36px));
+  :root{ --cell: min(9.2vw, 44px); }
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:16px;background:#fafafa;color:#111}
+  h1{margin:8px 0 16px;text-align:center}
+  .wrap{display:grid;grid-template-columns:1fr 360px;gap:16px;max-width:1080px;margin:0 auto}
+  @media (max-width:900px){ .wrap{grid-template-columns:1fr} }
+  /* grid table */
+  table{border-collapse:collapse;border:1px solid #111;background:#111;user-select:none;touch-action:manipulation;margin:0 auto}
+  td{width:var(--cell);height:var(--cell);border:1px solid #333;position:relative;text-align:center;background:#111}
+  td.white{background:#fff}
+  td input{width:100%;height:100%;border:0;outline:0;background:transparent;text-transform:uppercase;font-weight:700;font-size:calc(var(--cell)*0.46);text-align:center}
+  td .num{position:absolute;top:2px;left:3px;font-size:10px;color:#666;pointer-events:none}
+  /* clues */
+  .panel{border:1px solid #eee;background:#fff;padding:12px;border-radius:12px}
+  .panel h2{margin:6px 0}
+  .panel ol{margin:0;padding:0;list-style:none}
+  .panel li{margin:6px 0;cursor:pointer}
+  @media (max-width:900px){ .panel{order:2} }
+  /* controls */
+  .controls{display:flex;gap:8px;align-items:center;justify-content:center;margin:10px 0}
+  button{padding:10px 14px;border:1px solid #333;background:#fff;border-radius:10px;cursor:pointer;font-weight:600}
+  #status{font-size:14px}
+  .ok{padding:12px;border:1px solid #0a0;color:#0a0;border-radius:10px;margin:10px auto;display:none;max-width:720px;background:#f6fff6}
+  .reveal{display:none;margin:10px auto;padding:12px;border:1px dashed #555;border-radius:10px;max-width:720px;background:#fff}
+  .correct{background:#e8fbe8 !important}
+  .wrong{background:#ffeaea !important}
+  .tag{display:inline-block;padding:2px 8px;border:1px solid #999;border-radius:999px;font-size:12px;margin-left:8px}
+  /* mobile stacking */
+  .gridWrap{display:flex;flex-direction:column;align-items:center}
+  @media (max-width:900px){
+    :root{ --cell: min(8.4vw, 40px); }
+    .wrap{gap:12px}
   }
-  #formWrap iframe { height: 72vh; }
-}
 </style>
 </head>
 <body>
+<h1>Cruciverba di Laurea 🎓 <span class="tag" id="dirTag">orizzontale</span></h1>
 
-<h1>Cruciverba di Laurea 🎓</h1>
 <div class="wrap">
-  <div id="grid" class="grid"></div>
-</div>
+  <div class="gridWrap">
+    <table id="grid" aria-label="Griglia cruciverba"></table>
+    <div class="controls">
+      <button id="check">Verifica risposte</button>
+      <span id="status" aria-live="polite"></span>
+    </div>
+    <div id="ok" class="ok">Perfetto! Cruciverba completato 🎉</div>
+    <div id="reveal" class="reveal">
+      <p>Complimenti! Ora puoi inserire l’IBAN qui:</p>
+      <!-- SOSTITUISCI L’HREF QUI SOTTO con il tuo Google Form -->
+      <p><a id="formLink" href="https://forms.gle/TUO_FORM" target="_blank" rel="noopener">Apri il modulo</a></p>
+    </div>
+    <p style="font-size:12px;color:#666;margin-top:6px;text-align:center">
+      Tip: clicca una <b>cella numerata</b> per impostare automaticamente la direzione. Barra spaziatrice per alternare.</p>
+  </div>
 
-<div style="text-align:center; margin-top:20px;">
-  <button id="check">Verifica risposte</button>
-  <div id="win">Complimenti! Hai completato il cruciverba! 🎉</div>
-</div>
-
-<!-- box che apparirà alla fine -->
-<div id="formWrap">
-  <p>Ora puoi inserire l’IBAN qui 👇</p>
-  <iframe id="gform" loading="lazy"></iframe>
+  <div class="panel">
+    <h2>Orizzontali</h2>
+    <ol id="across"></ol>
+    <h2>Verticali</h2>
+    <ol id="down"></ol>
+  </div>
 </div>
 
 <script>
-// ==========================================
-// CONFIG
-// ==========================================
-const GOOGLE_FORM_LINK = ""; // <-- Inserisci qui il link del tuo Google Form
-
-// griglia e parole (mantieni i tuoi dati)
-const SIZE = 13;
-const grid = document.getElementById("grid");
-const checkBtn = document.getElementById("check");
-
-// esempio (sostituisci con la tua griglia se diversa)
-const ANSWERS = {
-  "0,1":"M","0,2":"I","0,3":"C","0,4":"H","0,5":"E","0,6":"L","0,7":"E",
-  "2,0":"S","2,1":"O","2,2":"F","2,3":"I","2,4":"A",
-  "6,1":"I","6,2":"T","6,3":"A","6,4":"L","6,5":"I","6,6":"A","6,7":"N","6,8":"O",
-  "8,2":"A","8,3":"N","8,4":"D","8,5":"R","8,6":"E","8,7":"A",
-  // verticali
-  "0,3":"C","1,3":"H","2,3":"I","3,3":"A","4,3":"R","5,3":"A",
-  "1,0":"O","2,0":"S","3,0":"L","4,0":"O",
-  "0,8":"E","1,8":"D","2,8":"O","3,8":"A","4,8":"R","5,8":"D","6,8":"O",
-  "1,9":"B","2,9":"A","3,9":"R","4,9":"O","5,9":"N","6,9":"E"
+/* ======= DATI (layout 4x4) =======
+   Across: 1 MICHELE, 4 SOFIA, 7 ITALIANO, 8 ANDREA
+   Down:   2 CHIARA, 3 OSLO, 5 EDOARDO, 6 BARONE
+*/
+const PUZZLE = {
+  rows: 11, cols: 11,
+  grid: [
+    "#MICHELE##", // r0
+    "O#H#E#D###", // r1
+    "S#SOFIA###", // r2
+    "L#A#A#A###", // r3
+    "O###R#R###", // r4
+    "#C#I#D#B##", // r5
+    "#ITALIANO#", // r6
+    "###N#R#A##", // r7
+    "##ANDREA##", // r8
+    "###O###N##", // r9
+    "########E#"  // r10
+  ],
+  across: [
+    { num:1, row:0, col:1, answer:"MICHELE", clue:"Si usa per indicare una media alta (7)"},
+    { num:4, row:2, col:2, answer:"SOFIA", clue:"Organizzatrice di eventi (5)"},
+    { num:7, row:6, col:1, answer:"ITALIANO", clue:"Ci ha insegnato a distinguere cani e gatti (8)"},
+    { num:8, row:8, col:2, answer:"ANDREA", clue:"Panino speciale e pizza bianca (6)"}
+  ],
+  down: [
+    { num:2, row:0, col:3, answer:"CHIARA", clue:"Anche se urla non si sente (6)"},
+    { num:3, row:1, col:0, answer:"OSLO", clue:"La meta Erasmus preferita delle Luissine (4)"},
+    { num:5, row:1, col:6, answer:"EDOARDO", clue:"Sinonimo di massa (7)"},
+    { num:6, row:1, col:8, answer:"BARONE", clue:"Dove mangiarsi un bel piatto di pasta (6)"}
+  ]
 };
 
-// celle nere (coerenza grafica)
-const BLACKS = [
-  "0,0","0,8","0,9","0,10","1,1","1,2","1,4","1,5","1,6","1,7","1,10",
-  "2,5","2,6","2,7","2,10","3,1","3,2","3,4","3,5","3,6","3,7","3,10",
-  "4,1","4,2","4,4","4,5","4,6","4,7","4,10","5,0","5,1","5,2","5,4",
-  "5,5","5,6","5,7","5,10","6,0","6,9","6,10","7,0","7,1","7,2","7,3","7,4","7,5","7,6","7,7","7,8","7,9","7,10",
-  "8,0","8,1","8,8","8,9","8,10","9,0","9,1","9,2","9,3","9,4","9,5","9,6","9,7","9,8","9,9","9,10",
-  "10,0","10,1","10,2","10,3","10,4","10,5","10,6","10,7","10,8","10,9","10,10"
-];
+/* ======= RENDER ======= */
+const gridEl = document.getElementById('grid');
+const acrossEl = document.getElementById('across');
+const downEl   = document.getElementById('down');
+let currentDir = 'across';
+const dirTag = document.getElementById('dirTag');
+const startDirMap = new Map(); // "r,c" -> {across:true?, down:true?}
 
-// numeri (se vuoi aggiungere)
-const NUMS = {"0,1":1,"2,0":4,"6,1":7,"8,2":8,"0,3":2,"1,0":3,"0,8":5,"1,9":6};
+function setDir(d){ currentDir = d; dirTag.textContent = d==='across' ? 'orizzontale' : 'verticale'; }
+function isWhite(r,c){ const ch = (PUZZLE.grid[r]||"")[c]; return ch && ch !== '#'; }
 
-// ==========================================
-// COSTRUZIONE GRIGLIA
-// ==========================================
-for(let r=0;r<SIZE;r++){
-  for(let c=0;c<SIZE;c++){
-    const key = `${r},${c}`;
-    const cell = document.createElement("div");
-    cell.className = BLACKS.includes(key) ? "cell black" : "cell";
-    if(!BLACKS.includes(key)){
-      const inp = document.createElement("input");
-      inp.maxLength = 1;
-      inp.autocapitalize = "characters";
-      inp.inputMode = "text";
-      cell.appendChild(inp);
+function renderGrid(){
+  gridEl.innerHTML = '';
+  for(let r=0;r<PUZZLE.rows;r++){
+    const tr = document.createElement('tr');
+    for(let c=0;c<PUZZLE.cols;c++){
+      const ch = (PUZZLE.grid[r]||"")[c] || '#';
+      const td = document.createElement('td');
+      if(ch !== '#'){
+        td.className = 'white';
+        const inp = document.createElement('input');
+        inp.maxLength = 1;
+        inp.autocapitalize = "characters";
+        inp.inputMode = "text";
+        inp.dataset.row = r; inp.dataset.col = c;
+        td.appendChild(inp);
+      }
+      tr.appendChild(td);
     }
-    if(NUMS[key]){
-      const num = document.createElement("div");
-      num.className = "num";
-      num.textContent = NUMS[key];
-      cell.appendChild(num);
-    }
-    grid.appendChild(cell);
+    gridEl.appendChild(tr);
   }
-}
+  // numerini e auto-direz.
+  const starts = new Map();
+  startDirMap.clear();
+  const addStart = (row,col,num,dir)=>{
+    const key=`${row},${col}`;
+    starts.set(key,num);
+    const obj = startDirMap.get(key)||{};
+    obj[dir]=true;
+    startDirMap.set(key,obj);
+  };
+  PUZZLE.across.forEach(a=>addStart(a.row,a.col,a.num,'across'));
+  PUZZLE.down.forEach(d=>addStart(d.row,d.col,d.num,'down'));
 
-// ==========================================
-// CHECK RISPOSTE
-// ==========================================
-function checkAll(){
-  let correct = true;
-  document.querySelectorAll('.cell').forEach((cell,idx)=>{
-    const inp = cell.querySelector('input');
+  gridEl.querySelectorAll('td').forEach(td=>{
+    const inp = td.querySelector('input');
     if(!inp) return;
-    const r = Math.floor(idx/SIZE);
-    const c = idx%SIZE;
-    const key = `${r},${c}`;
-    const val = (inp.value||"").toUpperCase();
-    const sol = ANSWERS[key]||"";
-    cell.classList.remove("correct","wrong");
-    if(val){
-      if(val===sol) cell.classList.add("correct");
-      else { cell.classList.add("wrong"); correct=false; setTimeout(()=>{inp.value=""; cell.classList.remove("wrong","correct");},800); }
-    } else correct=false;
+    const key = `${+inp.dataset.row},${+inp.dataset.col}`;
+    if(starts.has(key)){
+      const num = document.createElement('div'); num.className='num'; num.textContent = starts.get(key);
+      td.appendChild(num);
+      td.addEventListener('click', ()=>{
+        const dirs = startDirMap.get(key)||{};
+        if(dirs.across && !dirs.down) setDir('across');
+        else if(dirs.down && !dirs.across) setDir('down');
+      });
+    }
   });
-  if(correct) onSolved();
 }
+function renderClues(){
+  acrossEl.innerHTML = ''; downEl.innerHTML='';
+  PUZZLE.across.forEach(k=>{
+    const li=document.createElement('li'); li.textContent=`${k.num}. ${k.clue}`;
+    li.addEventListener('click',()=>focusWord(k,'across')); acrossEl.appendChild(li);
+  });
+  PUZZLE.down.forEach(k=>{
+    const li=document.createElement('li'); li.textContent=`${k.num}. ${k.clue}`;
+    li.addEventListener('click',()=>focusWord(k,'down')); downEl.appendChild(li);
+  });
+}
+renderGrid(); renderClues();
 
-// ==========================================
-// ON SOLVED
-// ==========================================
-function onSolved(){
-  document.getElementById('win').style.display='block';
-  if(GOOGLE_FORM_LINK){
-    const frame = document.getElementById('gform');
-    frame.src = GOOGLE_FORM_LINK;
-    const box = document.getElementById('formWrap');
-    box.style.display='block';
-    // 👇 scroll automatico al form (mobile-friendly)
-    setTimeout(()=> box.scrollIntoView({behavior:'smooth', block:'start'}), 100);
+/* ======= INPUT/NAV ======= */
+function getInput(r,c){ return gridEl.querySelector(`input[data-row="${r}"][data-col="${c}"]`); }
+function nextCell(r,c,dir,step=1){
+  if(dir==='across'){
+    let nc=c+step; while(nc>=0 && nc<PUZZLE.cols){ if(isWhite(r,nc)) return [r,nc]; nc+=step; }
+  } else {
+    let nr=r+step; while(nr>=0 && nr<PUZZLE.rows){ if(isWhite(nr,c)) return [nr,c]; nr+=step; }
   }
+  return null;
 }
+function focusWord(entry,dir){ setDir(dir); const s=getInput(entry.row,entry.col); if(s) s.focus(); }
 
-// ==========================================
-checkBtn.addEventListener("click", checkAll);
+gridEl.addEventListener('keydown', e=>{
+  const t=e.target; if(!(t instanceof HTMLInputElement)) return;
+  const r=+t.dataset.row, c=+t.dataset.col;
+  if(e.key===' '){ e.preventDefault(); setDir(currentDir==='across'?'down':'across'); return; }
+  if(e.key==='ArrowRight'){ setDir('across'); const n=nextCell(r,c,'across',+1); if(n) getInput(...n).focus(); }
+  if(e.key==='ArrowLeft'){  setDir('across'); const n=nextCell(r,c,'across',-1); if(n) getInput(...n).focus(); }
+  if(e.key==='ArrowDown'){  setDir('down');   const n=nextCell(r,c,'down',+1);   if(n) getInput(...n).focus(); }
+  if(e.key==='ArrowUp'){    setDir('down');   const n=nextCell(r,c,'down',-1);   if(n) getInput(...n).focus(); }
+});
+gridEl.addEventListener('focusin', e=>{
+  const t=e.target; if(!(t instanceof HTMLInputElement)) return;
+  const key=`${t.dataset.row},${t.dataset.col}`; const dirs=startDirMap.get(key)||{};
+  if(dirs.across && !dirs.down) setDir('across');
+  if(dirs.down && !dirs.across) setDir('down');
+});
+gridEl.addEventListener('input', e=>{
+  const t=e.target; if(!(t instanceof HTMLInputElement)) return;
+  t.value=t.value.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ]/g,'').toUpperCase().slice(0,1);
+  if(!t.value) return;
+  const r=+t.dataset.row,c=+t.dataset.col; const n=nextCell(r,c,currentDir,+1); if(n) getInput(...n).focus();
+});
+
+/* ======= CHECK & REVEAL ======= */
+const statusEl=document.getElementById('status');
+const okEl=document.getElementById('ok');
+const revealEl=document.getElementById('reveal');
+function checkEntry(entry,dir){
+  const {row,col,answer}=entry; let allCorrect=true;
+  for(let i=0;i<answer.length;i++){
+    const rr=row+(dir==='down'?i:0), cc=col+(dir==='across'?i:0);
+    const cell=getInput(rr,cc); const should=answer[i].toUpperCase();
+    const got=(cell?.value||'').toUpperCase(); const td=cell?.closest('td'); if(!cell||!td) continue;
+    td.classList.remove('correct','wrong');
+    if(got===should) td.classList.add('correct'); else { allCorrect=false; td.classList.add('wrong'); }
+  }
+  if(!allCorrect){
+    setTimeout(()=>{
+      for(let i=0;i<answer.length;i++){
+        const rr=row+(dir==='down'?i:0), cc=col+(dir==='across'?i:0);
+        const cell=getInput(rr,cc); const td=cell?.closest('td');
+        if(td && td.classList.contains('wrong')){ cell.value=''; td.classList.remove('wrong','correct'); }
+      }
+    }, 900);
+  }
+  return allCorrect;
+}
+function allSolved(){
+  for(let r=0;r<PUZZLE.rows;r++){
+    for(let c=0;c<PUZZLE.cols;c++){
+      const sol=(PUZZLE.grid[r]||"")[c]; if(!sol||sol==='#') continue;
+      const inp=getInput(r,c); if(!inp || (inp.value.toUpperCase()!==sol.toUpperCase())) return false;
+    }
+  } return true;
+}
+document.getElementById('check').addEventListener('click', ()=>{
+  PUZZLE.across.forEach(a=>checkEntry(a,'across'));
+  PUZZLE.down.forEach(d=>checkEntry(d,'down'));
+  const solved=allSolved();
+  statusEl.textContent = solved ? "Tutto corretto!" : "Ci sono errori, ricontrolla 😉";
+  okEl.style.display = solved ? 'block' : 'none';
+  revealEl.style.display = solved ? 'block' : 'none';
+  if(solved){ revealEl.scrollIntoView({behavior:'smooth', block:'start'}); }
+});
 </script>
 </body>
 </html>
