@@ -6,7 +6,7 @@
 <title>Cruciverba di Laurea</title>
 <style>
   :root{ --cell: min(10vw, 44px); }
-  body{font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin:16px; line-height:1.35}
+  body{font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; margin:16px; line-height:1.35}
   h1{margin:8px 0 16px}
   .wrap{display:grid;grid-template-columns:1fr 1fr;gap:16px}
   @media (max-width:900px){ .wrap{grid-template-columns:1fr} }
@@ -47,7 +47,10 @@
       <p>Complimenti! Ora puoi inserire l’IBAN qui:</p>
       <p><a href="https://forms.gle/TUO_FORM" target="_blank" rel="noopener">Apri il modulo</a></p>
     </div>
-    <p style="font-size:12px;color:#666;margin-top:10px">Suggerimento: premi <b>barra spaziatrice</b> per cambiare direzione (orizzontale/verticale).</p>
+    <p style="font-size:12px;color:#666;margin-top:10px">
+      Suggerimento: clicca una <b>cella numerata</b> per impostare automaticamente la direzione
+      (orizzontale/verticale). Oppure usa <b>barra spaziatrice</b> o le <b>frecce</b>.
+    </p>
   </div>
 
   <div class="panel">
@@ -59,55 +62,51 @@
 </div>
 
 <script>
-/* ======= DATI (layout 4x4 come nel tuo esempio) =======
-   Orizzontali: 1 MICHELE, 4 SOFIA, 7 ITALIANO, 8 ANDREA
-   Verticali:   2 CHIARA, 3 OSLO, 5 EDOARDO, 6 BARONE
-   Tutto è connesso, OSLO è VERTICALE.
+/* ======= LAYOUT 1:1 (come nel tuo mock) =======
+   Across: 1 MICHELE, 4 SOFIA, 7 ITALIANO, 8 ANDREA
+   Down:   2 CHIARA, 3 OSLO, 5 EDOARDO, 6 BARONE
+   Nota: per rispettare incastri/verticali, CHIARA parte dalla C di MICHELE,
+   OSLO è verticale e collegato a SOFIA; EDOARDO e BARONE scendono dal top.
 */
 const PUZZLE = {
   rows: 11, cols: 11,
-  // '#' = nero, lettere = soluzione
   grid: [
-    "#MICHELE##", // r0
-    "O#H#E#D###", // r1
-    "S#SOFIA###", // r2
-    "L#A#A#A###", // r3
-    "O###R#R###", // r4
-    "#C#I#D#B##", // r5
-    "#ITALIANO#", // r6
-    "###N#R#A##", // r7
-    "##ANDREA##", // r8
-    "###O###N##", // r9
-    "########E#"  // r10
+    "#MICHELEE##", // r0: 1-MICHELE + E (inizio 5-EDOARDO)
+    "O##H####DB#", // r1: 3-OSLO(O), 2-CHIARA(H), 5-EDOARDO(D), 6-BARONE(B)
+    "SOFIA###OA#",// r2: 4-SOFIA, incroci con 3 e 5 e 6
+    "L##A####AR#",// r3
+    "O##R####RO#",// r4
+    "###A####DN#",// r5
+    "#ITALIANOE#",// r6: 7-ITALIANO, incrocia 6 (E) e 5 (O)
+    "###########",// r7
+    "##ANDREA###",// r8: 8-ANDREA
+    "###########",// r9
+    "###########" // r10
   ],
-  // start coords e numerazione coerente con la griglia
   across: [
     { num:1, row:0, col:1, answer:"MICHELE", clue:"Si usa per indicare una media alta (7)"},
-    { num:4, row:2, col:2, answer:"SOFIA", clue:"Organizzatrice di eventi (5)"},
+    { num:4, row:2, col:0, answer:"SOFIA", clue:"Organizzatrice di eventi (5)"},
     { num:7, row:6, col:1, answer:"ITALIANO", clue:"Ci ha insegnato a distinguere cani e gatti (8)"},
     { num:8, row:8, col:2, answer:"ANDREA", clue:"Panino speciale e pizza bianca (6)"}
   ],
   down: [
-    { num:2, row:0, col:2, answer:"CHIARA", clue:"Anche se urla non si sente (6)"},
+    { num:2, row:0, col:3, answer:"CHIARA", clue:"Anche se urla non si sente (6)"},
     { num:3, row:1, col:0, answer:"OSLO", clue:"La meta Erasmus preferita delle Luissine (4)"},
-    { num:5, row:1, col:6, answer:"EDOARDO", clue:"Sinonimo di massa (7)"},
-    { num:6, row:1, col:8, answer:"BARONE", clue:"Dove mangiarsi un bel piatto di pasta (6)"}
+    { num:5, row:0, col:8, answer:"EDOARDO", clue:"Sinonimo di massa (7)"},
+    { num:6, row:1, col:9, answer:"BARONE", clue:"Dove mangiarsi un bel piatto di pasta (6)"}
   ],
-  finalLink: "https://forms.gle/TUO_FORM" // cambia qui
+  finalLink: "https://forms.gle/TUO_FORM"
 };
 
 /* ======= RENDER ======= */
 const gridEl = document.getElementById('grid');
 const acrossEl = document.getElementById('across');
 const downEl   = document.getElementById('down');
-let currentDir = 'across'; // or 'down'
+let currentDir = 'across';
 const dirTag = document.getElementById('dirTag');
+const startDirMap = new Map(); // "r,c" -> {across:true?, down:true?}
 
-function setDir(d){
-  currentDir = d;
-  dirTag.textContent = d === 'across' ? 'orizzontale' : 'verticale';
-}
-
+function setDir(d){ currentDir = d; dirTag.textContent = d==='across' ? 'orizzontale' : 'verticale'; }
 function isWhite(r,c){ const ch = (PUZZLE.grid[r]||"")[c]; return ch && ch !== '#'; }
 
 function renderGrid(){
@@ -128,42 +127,50 @@ function renderGrid(){
     }
     gridEl.appendChild(tr);
   }
-  // numerini
+  // numerini e mappa start->direzione
   const starts = new Map();
-  PUZZLE.across.forEach(a=>starts.set(`${a.row},${a.col}`, a.num));
-  PUZZLE.down.forEach(d=>starts.set(`${d.row},${d.col}`, d.num));
+  startDirMap.clear();
+  const addStart = (row,col,num,dir)=>{
+    const key=`${row},${col}`;
+    starts.set(key,num);
+    const obj = startDirMap.get(key)||{};
+    obj[dir]=true;
+    startDirMap.set(key,obj);
+  };
+  PUZZLE.across.forEach(a=>addStart(a.row,a.col,a.num,'across'));
+  PUZZLE.down.forEach(d=>addStart(d.row,d.col,d.num,'down'));
+
   gridEl.querySelectorAll('td').forEach(td=>{
     const inp = td.querySelector('input');
     if(!inp) return;
     const key = `${+inp.dataset.row},${+inp.dataset.col}`;
     if(starts.has(key)){
-      const num = document.createElement('div');
-      num.className = 'num';
-      num.textContent = starts.get(key);
+      const num = document.createElement('div'); num.className='num'; num.textContent = starts.get(key);
       td.appendChild(num);
+      td.addEventListener('click', ()=>{
+        const dirs = startDirMap.get(key)||{};
+        if(dirs.across && !dirs.down) setDir('across');
+        else if(dirs.down && !dirs.across) setDir('down');
+      });
     }
   });
 }
 
 function renderClues(){
-  acrossEl.innerHTML = '';
-  downEl.innerHTML = '';
-  PUZZLE.across.forEach(k=>{
-    const li = document.createElement('li');
-    li.textContent = `${k.num}. ${k.clue}`;
-    li.addEventListener('click', ()=>focusWord(k,'across'));
-    acrossEl.appendChild(li);
-  });
-  PUZZLE.down.forEach(k=>{
-    const li = document.createElement('li');
-    li.textContent = `${k.num}. ${k.clue}`;
-    li.addEventListener('click', ()=>focusWord(k,'down'));
-    downEl.appendChild(li);
-  });
+  const make = (arr, el, dir)=> {
+    el.innerHTML = '';
+    arr.forEach(k=>{
+      const li = document.createElement('li');
+      li.textContent = `${k.num}. ${k.clue}`;
+      li.addEventListener('click', ()=>focusWord(k,dir));
+      el.appendChild(li);
+    });
+  };
+  make(PUZZLE.across, acrossEl, 'across');
+  make(PUZZLE.down, downEl, 'down');
 }
 
-renderGrid();
-renderClues();
+renderGrid(); renderClues();
 
 /* ======= NAVIGAZIONE & INPUT ======= */
 function getInput(r,c){ return gridEl.querySelector(`input[data-row="${r}"][data-col="${c}"]`); }
@@ -171,51 +178,41 @@ function getInput(r,c){ return gridEl.querySelector(`input[data-row="${r}"][data
 function nextCell(r,c,dir,step=1){
   if(dir==='across'){
     let nc = c + step;
-    while(nc>=0 && nc<PUZZLE.cols){
-      if(isWhite(r,nc)) return [r,nc];
-      nc += step;
-    }
+    while(nc>=0 && nc<PUZZLE.cols){ if(isWhite(r,nc)) return [r,nc]; nc += step; }
   }else{
     let nr = r + step;
-    while(nr>=0 && nr<PUZZLE.rows){
-      if(isWhite(nr,c)) return [nr,c];
-      nr += step;
-    }
+    while(nr>=0 && nr<PUZZLE.rows){ if(isWhite(nr,c)) return [nr,c]; nr += step; }
   }
   return null;
 }
-
 function focusWord(entry, dir){
   setDir(dir);
-  const {row, col} = entry;
-  const start = getInput(row, col);
+  const start = getInput(entry.row, entry.col);
   if(start) start.focus();
 }
 
 gridEl.addEventListener('keydown', (e)=>{
-  const t = e.target;
-  if(!(t instanceof HTMLInputElement)) return;
+  const t = e.target; if(!(t instanceof HTMLInputElement)) return;
   const r = +t.dataset.row, c = +t.dataset.col;
-
-  if(e.key === ' '){ // toggle direzione
-    e.preventDefault();
-    setDir(currentDir === 'across' ? 'down' : 'across');
-    return;
-  }
-  if(e.key === 'ArrowRight'){ setDir('across'); const n = nextCell(r,c,'across',+1); if(n){ getInput(...n).focus(); } }
-  if(e.key === 'ArrowLeft'){  setDir('across'); const n = nextCell(r,c,'across',-1); if(n){ getInput(...n).focus(); } }
-  if(e.key === 'ArrowDown'){  setDir('down');   const n = nextCell(r,c,'down',+1);   if(n){ getInput(...n).focus(); } }
-  if(e.key === 'ArrowUp'){    setDir('down');   const n = nextCell(r,c,'down',-1);   if(n){ getInput(...n).focus(); } }
+  if(e.key===' '){ e.preventDefault(); setDir(currentDir==='across'?'down':'across'); return; }
+  if(e.key==='ArrowRight'){ setDir('across'); const n=nextCell(r,c,'across',+1); if(n) getInput(...n).focus(); }
+  if(e.key==='ArrowLeft'){  setDir('across'); const n=nextCell(r,c,'across',-1); if(n) getInput(...n).focus(); }
+  if(e.key==='ArrowDown'){  setDir('down');   const n=nextCell(r,c,'down',+1);   if(n) getInput(...n).focus(); }
+  if(e.key==='ArrowUp'){    setDir('down');   const n=nextCell(r,c,'down',-1);   if(n) getInput(...n).focus(); }
 });
-
+gridEl.addEventListener('focusin', (e)=>{
+  const t = e.target; if(!(t instanceof HTMLInputElement)) return;
+  const key = `${t.dataset.row},${t.dataset.col}`;
+  const dirs = startDirMap.get(key)||{};
+  if(dirs.across && !dirs.down) setDir('across');
+  if(dirs.down && !dirs.across) setDir('down');
+});
 gridEl.addEventListener('input', (e)=>{
-  const t = e.target;
-  if(!(t instanceof HTMLInputElement)) return;
+  const t = e.target; if(!(t instanceof HTMLInputElement)) return;
   t.value = t.value.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ]/g,'').toUpperCase().slice(0,1);
   if(!t.value) return;
   const r = +t.dataset.row, c = +t.dataset.col;
-  const n = nextCell(r,c,currentDir,+1);
-  if(n){ getInput(...n).focus(); }
+  const n = nextCell(r,c,currentDir,+1); if(n) getInput(...n).focus();
 });
 
 /* ======= VERIFICA ======= */
@@ -224,49 +221,37 @@ const okEl = document.getElementById('ok');
 const revealEl = document.getElementById('reveal');
 
 function checkEntry(entry, dir){
-  const {row, col, answer} = entry;
+  const {row,col,answer} = entry;
   let allCorrect = true;
   for(let i=0;i<answer.length;i++){
-    const rr = row + (dir==='down' ? i : 0);
-    const cc = col + (dir==='across' ? i : 0);
-    const cell = getInput(rr,cc);
-    const should = answer[i].toUpperCase();
-    const got = (cell?.value || '').toUpperCase();
-    const td = cell?.closest('td');
-    if(!cell || !td) continue;
+    const rr = row + (dir==='down'?i:0);
+    const cc = col + (dir==='across'?i:0);
+    const cell = getInput(rr,cc); const should = answer[i].toUpperCase();
+    const got = (cell?.value || '').toUpperCase(); const td = cell?.closest('td');
+    if(!cell||!td) continue;
     td.classList.remove('correct','wrong');
-    if(got === should){ td.classList.add('correct'); }
-    else{ allCorrect = false; td.classList.add('wrong'); }
+    if(got===should) td.classList.add('correct'); else { allCorrect=false; td.classList.add('wrong'); }
   }
   if(!allCorrect){
     setTimeout(()=>{
       for(let i=0;i<answer.length;i++){
-        const rr = row + (dir==='down' ? i : 0);
-        const cc = col + (dir==='across' ? i : 0);
-        const cell = getInput(rr,cc);
-        const td = cell?.closest('td');
-        if(td && td.classList.contains('wrong')){
-          cell.value = '';
-          td.classList.remove('wrong','correct');
-        }
+        const rr=row+(dir==='down'?i:0), cc=col+(dir==='across'?i:0);
+        const cell=getInput(rr,cc); const td=cell?.closest('td');
+        if(td && td.classList.contains('wrong')){ cell.value=''; td.classList.remove('wrong','correct'); }
       }
     }, 900);
   }
   return allCorrect;
 }
-
 function allSolved(){
   for(let r=0;r<PUZZLE.rows;r++){
     for(let c=0;c<PUZZLE.cols;c++){
-      const sol = (PUZZLE.grid[r]||"")[c];
-      if(!sol || sol === '#') continue;
-      const inp = getInput(r,c);
-      if(!inp || (inp.value.toUpperCase() !== sol.toUpperCase())) return false;
+      const sol=(PUZZLE.grid[r]||"")[c]; if(!sol||sol==='#') continue;
+      const inp=getInput(r,c); if(!inp || (inp.value.toUpperCase()!==sol.toUpperCase())) return false;
     }
   }
   return true;
 }
-
 document.getElementById('check').addEventListener('click', ()=>{
   PUZZLE.across.forEach(a=>checkEntry(a,'across'));
   PUZZLE.down.forEach(d=>checkEntry(d,'down'));
