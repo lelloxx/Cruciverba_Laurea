@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Cruciverba Laurea</title>
+<style>
+  :root{
+    --cell: min(9.5vw, 40px);
+  }
+  body{font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 16px; line-height: 1.35}
+  h1{margin: 8px 0 16px}
+  .wrap{display: grid; grid-template-columns: 1fr 1fr; gap: 16px}
+  @media (max-width: 900px){ .wrap{grid-template-columns: 1fr} }
+  table{border-collapse: collapse; border: 1px solid #e5e5e5; user-select: none; touch-action: manipulation}
+  td{width: var(--cell); height: var(--cell); border: 1px solid #e5e5e5; position: relative; text-align: center; background:#fff}
+  td.black{background:#111; border-color:#111}
+  td input{
+    width: 100%; height: 100%; border:0; outline: none;
+    text-transform: uppercase; font-weight: 700; font-size: calc(var(--cell) * 0.45);
+    text-align: center; background: transparent;
+  }
+  td .num{position:absolute; top:2px; left:3px; font-size: 10px; color:#666}
+  .panel{border:1px solid #eee; padding:12px; border-radius:12px}
+  .panel h2{margin:6px 0}
+  .panel ol{margin: 0 0 8px 18px; padding:0}
+  .panel li{margin:6px 0}
+  .controls{display:flex; gap:8px; align-items:center; margin:10px 0 0}
+  button{padding:10px 14px; border:1px solid #333; background:#fff; border-radius:10px; cursor:pointer}
+  #status{font-size: 14px}
+  .ok{padding:12px; border:1px solid #0a0; color:#0a0; border-radius:10px; margin-top:10px; display:none}
+  .reveal{display:none; margin-top:10px; padding:12px; border:1px dashed #555; border-radius:10px}
+  /* animazioni/feedback */
+  .correct{background: #e8fbe8 !important}
+  .wrong{background: #ffeaea !important}
+</style>
+</head>
+<body>
+<h1>Cruciverba di Laurea</h1>
+
+<div class="wrap">
+  <div>
+    <table id="grid" aria-label="Griglia cruciverba"></table>
+    <div class="controls">
+      <button id="check">Verifica</button>
+      <span id="status" aria-live="polite"></span>
+    </div>
+    <div id="ok" class="ok">Perfetto! Cruciverba completato 🎉</div>
+    <div id="reveal" class="reveal">
+      <p>Complimenti! Ora puoi inserire l’IBAN qui:</p>
+      <!-- Sostituisci l'href con il tuo Google Form/Doc -->
+      <p><a href="https://docs.google.com/forms/d/e/1FAIpQLSfAF6mUw5lEj4eH4f8CxdeJ1yG1CTHYvMjO-XNOvUKpNmfhPw/viewform?usp=dialog" target="_blank" rel="noopener">Apri il modulo</a></p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Orizzontali</h2>
+    <ol id="across"></ol>
+    <h2>Verticali</h2>
+    <ol id="down"></ol>
+  </div>
+</div>
+
+<script>
+/* ======= PUZZLE DATI ======= */
+/* Griglia 10x12; '#' = nero.
+   Parole:
+   - Orizzontali: ITALIANO (r5,c2), OSLO (r1,c7)
+   - Verticali: BARONE (r4,c4), SOFIA (r2,c2), MICHELE (r0,c5), CHIARA (r3,c6), EDOARDO (r3,c9), ANDREA (r4,c8)
+*/
+const PUZZLE = {
+  rows: 10, cols: 12,
+  grid: [
+    "#####M######",
+    "#####I#OSLO#",
+    "##S##C######",
+    "##O##HC##E##",
+    "##F#BEH#AD##",
+    "##ITALIANO##",
+    "##A#REA#DA##",
+    "####O#R#RR##",
+    "####N#A#ED##",
+    "####E###AO##"
+  ],
+  across: [
+    { num: 1, row: 5, col: 2, answer: "ITALIANO", clue: "Ci ha insegnato a distinguere cani e gatti" },
+    { num: 2, row: 1, col: 7, answer: "OSLO", clue: "La meta Erasmus preferita delle Luissine" },
+  ],
+  down: [
+    { num: 3, row: 4, col: 4, answer: "BARONE", clue: "Dove mangiarsi un bel piatto di pasta" },
+    { num: 4, row: 2, col: 2, answer: "SOFIA", clue: "Organizzatrice di eventi" },
+    { num: 5, row: 0, col: 5, answer: "MICHELE", clue: "Si usa per indicare una media alta" },
+    { num: 6, row: 3, col: 6, answer: "CHIARA", clue: "Anche se urla non si sente" },
+    { num: 7, row: 3, col: 9, answer: "EDOARDO", clue: "Sinonimo di massa" },
+    { num: 8, row: 4, col: 8, answer: "ANDREA", clue: "Panino speciale e pizza bianca" },
+  ],
+  finalLink: "https://forms.gle/TUO_FORM" // sostituisci
+};
+
+/* ======= RENDER GRIGLIA & INDIZI ======= */
+const gridEl = document.getElementById('grid');
+const acrossEl = document.getElementById('across');
+const downEl = document.getElementById('down');
+
+function renderGrid(){
+  gridEl.innerHTML = '';
+  for(let r=0;r<PUZZLE.rows;r++){
+    const tr = document.createElement('tr');
+    for(let c=0;c<PUZZLE.cols;c++){
+      const ch = (PUZZLE.grid[r]||"")[c] || "#";
+      const td = document.createElement('td');
+      if(ch === "#" || ch === undefined){ td.className = 'black'; }
+      else{
+        const inp = document.createElement('input');
+        inp.maxLength = 1;
+        inp.autocapitalize = "characters";
+        inp.inputMode = "text";
+        inp.dataset.row = r; inp.dataset.col = c;
+        td.appendChild(inp);
+      }
+      tr.appendChild(td);
+    }
+    gridEl.appendChild(tr);
+  }
+  // Numerini nelle celle di partenza
+  const starts = new Map();
+  PUZZLE.across.forEach(a=>starts.set(`${a.row},${a.col}`, a.num));
+  PUZZLE.down.forEach(d=>starts.set(`${d.row},${d.col}`, d.num));
+  gridEl.querySelectorAll('td').forEach(td=>{
+    const inp = td.querySelector('input');
+    if(!inp) return;
+    const key = `${+inp.dataset.row},${+inp.dataset.col}`;
+    if(starts.has(key)){
+      const num = document.createElement('div');
+      num.className = 'num';
+      num.textContent = starts.get(key);
+      td.appendChild(num);
+    }
+  });
+
+  // Navigazione semplice: frecce e avanzamento automatico
+  gridEl.addEventListener('input', (e)=>{
+    const t = e.target;
+    if(!(t instanceof HTMLInputElement)) return;
+    t.value = t.value.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ]/g,'').toUpperCase().slice(0,1);
+    if(t.value){
+      const r = +t.dataset.row, c = +t.dataset.col;
+      // vai a destra se possibile
+      let nc = c+1;
+      while(nc<PUZZLE.cols){
+        const nxt = gridEl.querySelector(`input[data-row="${r}"][data-col="${nc}"]`);
+        if(nxt){ nxt.focus(); break; }
+        nc++;
+      }
+    }
+  });
+  gridEl.addEventListener('keydown', (e)=>{
+    const t = e.target;
+    if(!(t instanceof HTMLInputElement)) return;
+    const r = +t.dataset.row, c = +t.dataset.col;
+    const move = (nr,nc)=>{
+      const nxt = gridEl.querySelector(`input[data-row="${nr}"][data-col="${nc}"]`);
+      if(nxt) nxt.focus();
+    };
+    if(e.key==='ArrowRight') move(r,c+1);
+    if(e.key==='ArrowLeft') move(r,c-1);
+    if(e.key==='ArrowDown') move(r+1,c);
+    if(e.key==='ArrowUp') move(r-1,c);
+    if(e.key==='Backspace' && !t.value){
+      // torna indietro
+      let pc = c-1;
+      while(pc>=0){
+        const prev = gridEl.querySelector(`input[data-row="${r}"][data-col="${pc}"]`);
+        if(prev){ prev.focus(); break; }
+        pc--;
+      }
+    }
+  });
+}
+
+function renderClues(){
+  acrossEl.innerHTML = '';
+  PUZZLE.across.forEach(k=>{
+    const li = document.createElement('li');
+    li.textContent = `${k.num}. ${k.clue} (${k.answer.length})`;
+    acrossEl.appendChild(li);
+  });
+  downEl.innerHTML = '';
+  PUZZLE.down.forEach(k=>{
+    const li = document.createElement('li');
+    li.textContent = `${k.num}. ${k.clue} (${k.answer.length})`;
+    downEl.appendChild(li);
+  });
+}
+
+renderGrid();
+renderClues();
+
+/* ======= VERIFICA & FEEDBACK ======= */
+const statusEl = document.getElementById('status');
+const okEl = document.getElementById('ok');
+const revealEl = document.getElementById('reveal');
+
+function getInput(r,c){
+  return gridEl.querySelector(`input[data-row="${r}"][data-col="${c}"]`);
+}
+function letterAt(r,c){ return (PUZZLE.grid[r]||"")[c]; }
+
+function checkEntry(entry, dir){
+  const {row, col, answer} = entry;
+  let allCorrect = true;
+  for(let i=0;i<answer.length;i++){
+    const rr = row + (dir==='down' ? i : 0);
+    const cc = col + (dir==='across' ? i : 0);
+    const cell = getInput(rr,cc);
+    const should = answer[i].toUpperCase();
+    const got = (cell?.value || '').toUpperCase();
+    const td = cell?.closest('td');
+    if(!cell || !td) continue;
+
+    // pulizia colori precedenti
+    td.classList.remove('correct','wrong');
+
+    if(got === should){
+      td.classList.add('correct');
+    } else {
+      allCorrect = false;
+      td.classList.add('wrong');
+    }
+  }
+  // Se ci sono errori, auto-cancella SOLO quelle celle marcate wrong
+  if(!allCorrect){
+    setTimeout(()=>{
+      for(let i=0;i<answer.length;i++){
+        const rr = row + (dir==='down' ? i : 0);
+        const cc = col + (dir==='across' ? i : 0);
+        const cell = getInput(rr,cc);
+        const td = cell?.closest('td');
+        if(td && td.classList.contains('wrong')){
+          cell.value = '';
+          td.classList.remove('wrong','correct');
+        }
+      }
+    }, 1000);
+  }
+  return allCorrect;
+}
+
+function allSolved(){
+  // Confronto griglia piena vs soluzione
+  for(let r=0;r<PUZZLE.rows;r++){
+    for(let c=0;c<PUZZLE.cols;c++){
+      const sol = letterAt(r,c);
+      if(sol === '#' || sol === undefined) continue;
+      const inp = getInput(r,c);
+      if(!inp || (inp.value.toUpperCase() !== sol.toUpperCase())) return false;
+    }
+  }
+  return true;
+}
+
+document.getElementById('check').addEventListener('click', ()=>{
+  let ok = true;
+  // verifica ogni parola con feedback per-parola
+  PUZZLE.across.forEach(a=>{ ok &= checkEntry(a,'across'); });
+  PUZZLE.down.forEach(d=>{ ok &= checkEntry(d,'down'); });
+
+  const solved = allSolved();
+  statusEl.textContent = solved ? "Tutto corretto!" : "Ci sono errori, ricontrolla 😉";
+  okEl.style.display = solved ? 'block' : 'none';
+  revealEl.style.display = solved ? 'block' : 'none';
+  // facoltativo: scroll al reveal su mobile
+  if(solved){ revealEl.scrollIntoView({behavior:'smooth', block:'start'}); }
+});
+</script>
+</body>
+</html>
